@@ -1,69 +1,66 @@
 (function Fetch(_w, _http) {
+	var REQUESTED = 0;
+	var LOADED = 1;
+	var READY = 2;
+	
 	var _fetched = {};
-	var _exp = /^\[(?:\s)*(?:(?:\s)*(?:'|")[^,\s]+(?:'|")(?:\s)*(?:,(?:\s)*)?)+(?:\s)*];/;
+	var _inclExp = /^\[(?:\s)*(?:(?:\s)*(?:'|")[^,\s]+(?:'|")(?:\s)*(?:,(?:\s)*)?)+(?:\s)*];/;
 	
 	function Module(_src) {
 		var _dependencies = 0;
-		var _script = '';
-		this.state = Module.REQUESTED;
+		var _script = null;
+		this.state = REQUESTED;
 		this.callbacks = [];
 		
 		function onmodule() {
 			if (--_dependencies <= 0)
 				onready.call(this);
 		};
-		
-		function onready() {
-			this.state = Module.READY;
-			scriptInject(_script);
-			if (Fetch.debug)
-				console.log('Module Ready:', _src);
+		function oninject() {
 			for (var i = 0, len = this.callbacks.length; i < len; i++)
 				this.callbacks[i]();
 		};
-		
+		function onready() {
+			this.state = READY;
+			if (_script)
+				scriptInject(_src, _script, oninject.bind(this));
+			else
+				oninject.call(this);
+		};
 		function onload(req) {
-			this.state = Module.LOADED;
-			var data = _script = req.responseText.trim();
-			
-			var includes = _exp.exec(data);
-			if (includes && includes.length === 1) {
-				includes = eval(includes[0]);
-				var len = _dependencies = includes.length;
-				if (Fetch.debug)
-					console.log('Module Loaded:', _src, '-- with', len, 'dependencies');
-				// TODO interpret include url for relative loading.
-				for (var i = 0; i < len; i++)
-					fetch(includes[i], onmodule.bind(this));
-			} else {
-				if (Fetch.debug)
-					console.log('Module Loaded:', _src, '-- with 0 dependencies');
+			this.state = LOADED;
+			var data = _script = req.responseText;
+			var includes = _inclExp.exec(data);
+			if (includes && includes.length === 1)
+				loadDependencies.call(this, eval(includes[0]));
+			else
 				onready.call(this);
-			}
 		};
-		
+		function loadDependencies(includes) {
+			var len = _dependencies = includes.length;
+			for (var i = 0; i < len; i++)
+				fetch(includes[i], onmodule.bind(this));
+		};
 		function load() {
-			if (Fetch.debug)
-				console.log('Module Request:', _src);
-			file(_src, onload.bind(this));
+			if (typeof _src === 'object')
+				loadDependencies.call(this, _src);
+			else
+				file(_src, onload.bind(this));
 		};
 		
-		load.call(this);
+		this.load = load.bind(this);
 	};
-	Module.REQUESTED = 0;
-	Module.LOADED = 1;
-	Module.READY = 2;
-	
-	function scriptInject(code) {
+	function scriptInject(src, code, callback) {
 		var newScript = document.createElement('script');
 		newScript.type = 'text/javascript';
 		newScript.async = true;
-		newScript.innerHTML = code;
+		newScript.onload = callback;
+		
+		newScript.src = Fetch.keepSrc ? src : _w.URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
 		
 		var topScript = document.getElementsByTagName('script')[0];
 		topScript.parentNode.insertBefore(newScript, topScript);
 	};
-	
 	function requestHandler(src, callback) {
 		if (this.readyState === 4) {
 			if (this.status === 200 && callback)
@@ -82,29 +79,32 @@
 		var mod;
 		if (_fetched[script]) {
 			mod = _fetched[script];
-			if (mod.state === Module.READY)
+			if (mod.state === READY)
 				callback();
 			else
 				mod.callbacks.push(callback);
 		} else {
 			mod = _fetched[script] = new Module(script);
 			mod.callbacks = [callback];
+			mod.load();
 		}
 	};
-	function batchFetch(scripts, callback) {
-		if (typeof scripts === 'string')
-			fetch(scripts, callback);
-		else	
-			for (var i = 0, len = scripts.length; i < len; i++)
-				fetch(scripts[i], callback);
-	};
-	function toss() {
-		// How do we remove a script??!
+	function batchFetch() {
+		var last = arguments.length - 1;
+		var callback;
+		if (typeof arguments[last] !== 'string') {
+			callback = arguments[last];
+			delete arguments[last];
+			arguments.length = last;
+		}
+		var mod = new Module(arguments);
+		if (callback)
+			mod.callbacks = [callback];
+		mod.load();
 	};
 	
+	// EXPORT
 	var Fetch = _w.fetch = batchFetch;
 	Fetch.file = file;
-	Fetch.debug = false;
-	// what other properties might I need?
-	
+	Fetch.keepSrc = false;
 })(window, XMLHttpRequest);
