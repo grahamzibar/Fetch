@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Example</title>
+		
+		<!-- Include our framework, yo -->
+		<script type="text/javascript" src="src/fetch.js"></script>
+		<style>
+		<!--
+			body {
+				background-position:center center;
+			}
+		-->
+		</style>
+	</head>
+	<body>
+		<button id="button_thing">Touch Me!</button>
+		<p id="output"></p>
+		
+		<script type="text/javascript">
+		<!--
+			// enable console logging
+			fetch.debug = true;
+			
+			// grab some of our delicious DOM elements
+			var output = document.getElementById('output');
+			var button = document.getElementById('button_thing');
+			
+			// Oh baby....
+			function touchMe() {
+				// Let's reveal a spinner!!
+				document.body.style.background = 'url("spinner.gif")';
+				
+				// Here, we fetch a script
+				fetch('js/app.js',
+					
+					// This is a callback function for when the script
+					// (and any possible dependencies it has) are all
+					// fully loaded and executed.
+					function() {
+						document.body.style.background = 'none';
+						
+						var app = new App(output);
+						app.sayHello();
+						app.write('Click the button again to see new functionality!!');
+						
+						button.removeEventListener('click', touchMe, false);
+						button.addEventListener('click', app.whatever, false);
+					}
+				);
+			};
+			
+			button.addEventListener('click', touchMe, false);
+		//-->
+		</script>
+	</body>
+</html>
