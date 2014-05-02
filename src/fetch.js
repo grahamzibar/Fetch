@@ -8,7 +8,7 @@
 		|/  |/  |  /    |/ \   
 		|__/|__/|_/\___/|   |_/
 		|\                     
-		|/ 
+		|/
 	
 	* Created by: Graham Robertson
 	* https://github.com/grahamzibar/fetch
@@ -21,6 +21,7 @@
 	
 	var _fetched = {};
 	var _inclExp = /^\[(?:\s)*(?:(?:\s)*(?:'|")[^,\s]+(?:'|")(?:\s)*(?:,(?:\s)*)?)+(?:\s)*];/;
+	var _absExp = /^(?:[A-Za-z0-9]+:\/)?\//;
 	
 	function Module(_src) {
 		var _dependencies = 0;
@@ -54,8 +55,34 @@
 		};
 		function loadDependencies(includes) {
 			var len = _dependencies = includes.length;
-			for (var i = 0; i < len; i++)
-				fetch(includes[i], onmodule.bind(this));
+			for (var i = 0; i < len; i++) {
+				var url = includes[i];
+				if (!_absExp.test(url)) {
+					var src = new String(_src);
+					var start = url[0] + url[1];
+					if (start === '..') {
+						src = src.split('/');
+						src.pop();
+						
+						url = url.split('../');
+						var p = url[0];
+						var j = 0;
+						while(!p) {
+							j++;
+							src.pop();
+							p = url[j];
+						}
+						url = src.join('/');
+						url += '/';
+						url += p;
+					} else if (start === './')
+						url = src.substring(0, src.lastIndexOf('/') + 1) + url.substr(2);
+					else
+						url = src.substring(0, src.lastIndexOf('/') + 1) + url;
+					
+				}
+				fetch(url, onmodule.bind(this));
+			}
 		};
 		function load() {
 			if (typeof _src === 'object')

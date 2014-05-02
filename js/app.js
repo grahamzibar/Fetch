@@ -1,4 +1,4 @@
-['js/writer.js', 'js/useless.js'];
+['writer.js', 'useless.js']; // Relative URLs!
 function App(_el) {
 	this.inheritFrom = Writer;
 	this.inheritFrom(_el);
